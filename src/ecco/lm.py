@@ -83,6 +83,8 @@ class LM(object):
     def _reset(self):
         self._all_activations_dict = {}
         self._generation_activations_dict = {}
+        self._attn_out_dict = {}  # TODO: better name
+        self._mlp_out_dict = {}  # TODO: better name
         self.activations = []
         self.all_activations = []
         self.generation_activations = []
@@ -205,6 +207,11 @@ class LM(object):
 
         attributions = self.attributions
         attn = getattr(output, "attentions", None)
+
+        # TODO: cleanup calculation
+        attn_outs = [self._attn_out_dict[k][0] for k in sorted(self._attn_out_dict.keys())]
+        mlp_outs = [self._mlp_out_dict[k][0] for k in sorted(self._mlp_out_dict.keys())]
+
         return OutputSeq(**{'tokenizer': self.tokenizer,
                             'token_ids': input_ids,
                             'n_input_tokens': n_input_tokens,
@@ -217,6 +224,8 @@ class LM(object):
                             'activations': self.activations,
                             'collect_activations_layer_nums': self.collect_activations_layer_nums,
                             'lm_head': self.model.lm_head,
+                            'attn_outs': attn_outs,
+                            'mlp_outs': mlp_outs,
                             'device': self.device})
 
     def _get_embeddings(self, input_ids):
@@ -253,6 +262,35 @@ class LM(object):
                     lambda self_, input_, name=name: \
                         self._inhibit_neurons_hook(name, input_)
                 )
+        self._attach_subblock_hooks(model)
+
+    def _attach_subblock_hooks(self, model):
+        for name, module in model.named_modules():
+            if "attn.c_proj" in name:
+                self._hooks[name] = module.register_forward_hook(
+                    lambda self_, input_, output,
+                            name=name: self._get_attn_out_hook(name, output))
+
+            if "mlp.c_proj" in name:
+                self._hooks[name] = module.register_forward_hook(
+                    lambda self_, input_, output,
+                            name=name: self._get_mlp_out_hook(name, output))
+
+    def _get_attn_out_hook(self, name, out):
+      layer_number = int(name.split('.')[2])
+
+      if layer_number not in self._attn_out_dict:
+          self._attn_out_dict[layer_number] = [0]
+
+      self._attn_out_dict[layer_number][0] = (out[0].detach().cpu())
+
+    def _get_mlp_out_hook(self, name, out):
+      layer_number = int(name.split('.')[2])
+
+      if layer_number not in self._mlp_out_dict:
+          self._mlp_out_dict[layer_number] = [0]
+
+      self._mlp_out_dict[layer_number][0] = (out[0].detach().cpu())
 
     def _get_activations_hook(self, name: str, input_):
         """
