@@ -187,7 +187,7 @@ def plot_lensed_subblock_states(states,
         clip_percentile = 99.7 if diff else 98
 
     to_plot = states.loc[layer_start:layer_end]
-    to_plot = to_plot.drop([c for c in to_plot.columns if c.startswith("metadata")],
+    to_plot = to_plot.drop([c for c in to_plot.columns if str(c).startswith("metadata")],
                            axis=1)
 
     if diff:
