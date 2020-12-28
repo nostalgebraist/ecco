@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from tqdm.autonotebook import tqdm, trange
 from sklearn.decomposition import sparse_encode
 
