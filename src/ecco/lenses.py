@@ -64,7 +64,7 @@ def make_logit_lens(output: ecco.output.OutputSeq):
 def make_spike_lens(lm: ecco.lm.LM,
                     layer_num: int,
                     layer_normed_inputs=False,
-                    variant="pseudoinverse",
+                    variant="sparse",
                     variant_kwargs={},
                     ):
     for name, p in lm.model.transformer.h.named_parameters():
@@ -75,7 +75,7 @@ def make_spike_lens(lm: ecco.lm.LM,
 
     numpy_head = False
 
-    if variant == "pseudoinverse":
+    if variant == "sparse":
         alpha = variant_kwargs.get("alpha", 1.)
 
         numpy_head = True
@@ -87,15 +87,13 @@ def make_spike_lens(lm: ecco.lm.LM,
         spike_basis_for_coder = (spike_basis_np.T / norms_for_coder).T
 
         def _fn(h):
-            result = sparse_encode(X=h - spike_basis_bias_np,
+            result = sparse_encode(X=h-spike_basis_bias_np,
                                    dictionary=spike_basis_for_coder,
                                    algorithm='lasso_lars',
                                    alpha=alpha,
                                    )
             result /= norms_for_coder
             return result
-
-
     else:
         # TODO: implement pseudoinverse, raw multiply, others?
         raise ValueError(f"variant {repr(variant)}")
@@ -163,6 +161,7 @@ def plot_lensed_subblock_states(states,
                                 layer_end=None,
                                 diff=False,
                                 clip_percentile=None,
+                                cbar=False,
                                 ):
     if clip_percentile is None:
         # note: sns "robust" uses 2nd and 98th %iles
@@ -181,7 +180,7 @@ def plot_lensed_subblock_states(states,
     vmax = np.nanpercentile(to_plot, clip_percentile)
 
     sns.heatmap(to_plot,
-                cbar=False,
+                cbar=cbar,
                 center=0,
                 robust=False,
                 vmin=vmin, vmax=vmax,
