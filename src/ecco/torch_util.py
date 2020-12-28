@@ -7,5 +7,5 @@ def to_tensor(x, device):
 def to_numpy(x):
     return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
 
-def subtract_mean(t: torch.Tensor):
-  return (t.T-t.mean(dim=1).T).T
+def subtract_mean(t: torch.Tensor, dim=-1):
+  return (t.T-t.mean(dim=dim).T).T
