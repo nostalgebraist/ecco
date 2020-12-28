@@ -459,7 +459,7 @@ class OutputSeq:
             rows.append(h_plus_attn_mlp)
             names.append(f"h{lix+1}")
 
-        a = np.stack(rows, axis=0)
+        a = torch.stack(rows, axis=0)
         return a, names
 
     def run_nmf(self, **kwargs):
