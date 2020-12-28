@@ -169,7 +169,8 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     df = pd.DataFrame(pre_df, index=names, )
 
     if lens_head.inv_fn is not None:
-        df["metadata_errs"] = errs
+        errs_np = [ecco.torch_util.to_numpy(row) for row in errs]
+        df["metadata_errs"] = errs_np
 
     return df
 
