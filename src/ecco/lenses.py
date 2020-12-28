@@ -6,7 +6,7 @@ import ecco
 
 
 def lensed_subblock_states(output: ecco.output.OutputSeq,
-                           position=None,
+                           position=0,
                            lens_head=None,
                            lens_head_is_np=False,
                            lens_head_on_diff=False,
@@ -54,4 +54,8 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
         prev_for_user = h_for_user
 
     a = np.stack(rows, axis=0)
-    return a
+
+    # TODO: cleanup
+    pre_df = a[:, 0, :]  # remove position singleton axis
+    df = pd.DataFrame(pre_df, index=names, )
+    return df
