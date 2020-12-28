@@ -4,6 +4,9 @@ from sklearn.decomposition import sparse_encode
 
 import ecco
 
+def _subtract_mean(t):
+  return (t.T-t.mean(dim=1).T).T
+
 def lensed_subblock_states(output: ecco.output.OutputSeq,
                            position=None,
                            lens_head=None,
