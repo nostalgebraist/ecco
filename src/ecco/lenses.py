@@ -97,5 +97,4 @@ def plot_lensed_subblock_states(states,
     plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
 
     plt.grid(which='minor', c='k')
-    plt.title(states.name);
     plt.show()
