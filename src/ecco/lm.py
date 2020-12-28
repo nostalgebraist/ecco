@@ -226,6 +226,8 @@ class LM(object):
                             'lm_head': self.model.lm_head,
                             'attn_outs': attn_outs,
                             'mlp_outs': mlp_outs,
+                            'layer_norm': self.layer_norm,
+                            'layer_norm_f': self.layer_norm_f,
                             'device': self.device})
 
     def _get_embeddings(self, input_ids):
@@ -353,6 +355,16 @@ class LM(object):
                 input_tensor[0][0][-1][n] = input_tensor[0][0][-1][n] * 10  # tuple, batch, position
 
         return input_tensor
+
+    @property
+    def layer_norm(self):
+        ln_no_affine = torch.nn.LayerNorm((self.model.transformer.ln_f.weight.shape[0],), elementwise_affine=False)
+        self.to(ln_no_affine)
+        return ln_no_affine
+
+    @property
+    def layer_norm_f(self):
+        return self.lm.model.transformer.ln_f
 
     def display_input_sequence(self, input_ids):
 

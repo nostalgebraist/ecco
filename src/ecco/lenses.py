@@ -22,9 +22,11 @@ class _LensHeadBase:
     def __init__(self,
                  fn,
                  tensor_inputs_and_outputs=True,
+                 layer_normed_inputs=False,
                  ):
         self.fn = fn
         self.tensor_inputs_and_outputs = tensor_inputs_and_outputs
+        self.layer_normed_inputs = layer_normed_inputs
 
         if self.tensor_inputs_and_outputs:
             self._to_input = _to_tensor
@@ -53,14 +55,71 @@ class NumpyLensHead(_LensHeadBase):
 
 NO_LENS = LensHead(fn=lambda x: x)
 
+def make_layer_norm_lens(output: ecco.output.OutputSeq):
+    return LensHead(fn=output.layer_norm)
+
+def make_logit_lens(output: ecco.output.OutputSeq):
+    return LensHead(fn=lambda x: output.lm_head(output.layer_norm_f(x)))
+
+def make_spike_lens(lm: ecco.lm.LM,
+                    layer_num: int,
+                    layer_normed_inputs=False,
+                    variant="pseudoinverse",
+                    variant_kwargs={},
+                    ):
+    for name, p in lm.model.transformer.h.named_parameters():
+      if name == f"{layer_num}.mlp.c_proj.weight":
+        spike_basis = p
+      if name == f"{layer_num}.mlp.c_proj.bias":
+        spike_basis_bias = p
+
+    numpy_head = False
+
+    if variant == "pseudoinverse":
+        alpha = variant_kwargs.get("alpha", 1.)
+
+        numpy_head = True
+
+        spike_basis_np = spike_basis.cpu().detach().numpy()
+        spike_basis_bias_np = spike_basis_bias.cpu().detach().numpy()
+
+        norms_for_coder = np.linalg.norm(spike_basis_np, axis=1)
+        spike_basis_for_coder = (spike_basis_np.T / norms_for_coder).T
+
+        def _fn(h):
+            result = sparse_encode(X=h - spike_basis_bias_np,
+                                   dictionary=spike_basis_for_coder,
+                                   algorithm='lasso_lars',
+                                   alpha=alpha,
+                                   )
+            result /= norms_for_coder
+            return result
+
+
+    else:
+        # TODO: implement pseudoinverse, raw multiply, others?
+        raise ValueError(f"variant {repr(variant)}")
+
+    if layer_normed_inputs:
+        def _fn_wrapped(h):
+            h = lm.layer_norm(_to_tensor(h, lm.device))
+            return _fn(h)
+        _fn = _fn_wrapped
+
+    lens_class = NumpyLensHead if numpy_head else LensHead
+    return lens_class(fn=_fn)
+
 
 def lensed_subblock_states(output: ecco.output.OutputSeq,
                            position=0,
-                           lens_head: _LensHeadBase=NO_LENS,
+                           lens_head: _LensHeadBase=None,
                            lens_head_on_diff=False,
                            subtract_means=True,
                            max_layers=None,
                            use_tqdm=False):
+    if lens_head is None:
+        lens_head = make_layer_norm_lens(lm)
+
     subblock_state_array, names = output.subblock_states(
         position=position,
         subtract_means=subtract_means,

@@ -32,6 +32,8 @@ class OutputSeq:
                  lm_head=None,
                  attn_outs=None,
                  mlp_outs=None,
+                 layer_norm=None,
+                 layer_norm_f=None,
                  device='cpu'):
         self.token_ids = token_ids
         self.tokenizer = tokenizer
@@ -48,6 +50,8 @@ class OutputSeq:
         self.lm_head = lm_head
         self.attn_outs = attn_outs
         self.mlp_outs = mlp_outs
+        self.layer_norm = layer_norm
+        self.layer_norm_f = layer_norm_f
         self.device = device
         self._path = os.path.dirname(ecco.__file__)
 
