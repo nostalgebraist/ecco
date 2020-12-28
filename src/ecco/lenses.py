@@ -101,10 +101,13 @@ def make_spike_lens(lm: ecco.lm.LM,
         raise ValueError(f"variant {repr(variant)}")
 
     if layer_normed_inputs:
-        def _fn_wrapped(h):
+        _base_fn = _fn
+        def _fn(h):
+            # TODO: cleanup?
             h = lm.layer_norm(_to_tensor(h, lm.device))
-            return _fn(h)
-        _fn = _fn_wrapped
+            if numpy_head:
+              h = _to_numpy(h)
+            return _base_fn(h)
 
     lens_class = NumpyLensHead if numpy_head else LensHead
     return lens_class(fn=_fn)
