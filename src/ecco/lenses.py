@@ -1,5 +1,9 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
+import seaborn as sns
+
 from tqdm.autonotebook import tqdm, trange
 from sklearn.decomposition import sparse_encode
 
@@ -60,3 +64,38 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     pre_df = a[:, 0, :]  # remove position singleton axis
     df = pd.DataFrame(pre_df, index=names, )
     return df
+
+
+def plot_lensed_subblock_states(states,
+                                layer_start=None,
+                                layer_end=None,
+                                diff=False,
+                                clip_percentile=None,
+                                ):
+    if clip_percentile is None:
+        # note: sns "robust" uses 2nd and 98th %iles
+        clip_percentile = 99.7 if diff else 98
+
+    to_plot = states.loc[layer_start:layer_end]
+
+    if diff:
+      to_plot = to_plot.diff(axis=0).dropna()
+
+    to_plot = to_plot.iloc[::-1, :]
+
+    plt.figure(figsize=(12, to_plot.shape[0]))
+
+    vmin = np.nanpercentile(to_plot, 100-clip_percentile)
+    vmax = np.nanpercentile(to_plot, clip_percentile)
+
+    sns.heatmap(to_plot,
+                cbar=False,
+                center=0,
+                robust=False,
+                vmin=vmin, vmax=vmax,
+                cmap='vlag');
+    plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
+
+    plt.grid(which='minor', c='k')
+    plt.title(states.name);
+    plt.show()
