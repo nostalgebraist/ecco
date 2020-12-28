@@ -4,8 +4,6 @@ from sklearn.decomposition import sparse_encode
 
 import ecco
 
-def _subtract_mean(t):
-  return (t.T-t.mean(dim=1).T).T
 
 def lensed_subblock_states(output: ecco.output.OutputSeq,
                            position=None,
@@ -34,40 +32,26 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
             h_for_user = tensor.numpy()
         return h_for_user
 
-    def _at_position(state):
-        if position is not None:
-            return state[position:position+1, :]
-        return state
+    subblock_state_array, names = output.subblock_states(
+        position=position,
+        subtract_means=subtract_means,
+        max_layers=max_layers,
+    )
 
     rows = []
-    names = []
 
-    if max_layers is None:
-      max_layers = len(output.hidden_states)
-
-    _iter = list(range(max_layers))
+    _iter = zip(names, subblock_state_array)
     if use_tqdm:
-      _iter = trange(max_layers)
-    for lix in _iter:
-      h = _at_position(output.hidden_states[lix])
-      if subtract_means:
-          h = _subtract_mean(h)
-      if lix == 0:
-        rows.append(_to_user(h))
-        names.append(f"h{lix}")
+        _iter = tqdm(_iter)
 
-      if lix < len(output.attn_outs):
-        h_plus_attn = h + _at_position(output.attn_outs[lix])
-        if subtract_means:
-          h_plus_attn = _subtract_mean(h_plus_attn)
-        rows.append(_to_user(h_plus_attn, prev=h, prev_for_user=rows[-1]))
-        names.append(f"h{lix}+attn{lix+1}")
+    prev = None
+    prev_for_user = None
+    for name, h in _iter:
+        h_for_user = _to_user(h, prev=prev, prev_for_user=prev_for_user)
+        rows.append(h_for_user)
 
-        h_plus_attn_mlp = h + _at_position(output.attn_outs[lix]) + _at_position(output.mlp_outs[lix])
-        if subtract_means:
-          h_plus_attn_mlp = _subtract_mean(h_plus_attn_mlp)
-        rows.append(_to_user(h_plus_attn_mlp, prev=h_plus_attn, prev_for_user=rows[-1]))
-        names.append(f"h{lix+1}")
+        prev = h
+        prev_for_user = h_for_user
 
     a = np.stack(rows, axis=0)
-    return a, names
+    return a
