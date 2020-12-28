@@ -1,6 +1,7 @@
 import torch
 import transformers
 import ecco
+import ecco.torch_util
 from torch.nn import functional as F
 import numpy as np
 from ecco.output import OutputSeq

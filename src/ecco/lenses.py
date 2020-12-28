@@ -9,6 +9,10 @@ from sklearn.decomposition import sparse_encode
 
 import torch
 import ecco
+import ecco.lm
+import ecco.output
+import ecco.torch_util
+
 
 class _LensHeadBase:
     def __init__(self,
