@@ -168,7 +168,8 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     pre_df = a[:, 0, :]  # remove position singleton axis
     df = pd.DataFrame(pre_df, index=names, )
 
-    df["metadata_errs"] = errs
+    if lens_head.inv_fn is not None:
+        df["metadata_errs"] = errs
 
     return df
 
