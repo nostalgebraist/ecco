@@ -364,7 +364,7 @@ class LM(object):
 
     @property
     def layer_norm_f(self):
-        return self.lm.model.transformer.ln_f
+        return self.model.transformer.ln_f
 
     def display_input_sequence(self, input_ids):
 
