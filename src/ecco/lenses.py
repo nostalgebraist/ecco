@@ -77,8 +77,6 @@ def make_spike_lens(lm: ecco.lm.LM,
     numpy_head = False
 
     if variant == "sparse":
-        alpha = variant_kwargs.get("alpha", 1.)
-
         numpy_head = True
 
         spike_basis_np = spike_basis.cpu().detach().numpy()
@@ -90,11 +88,15 @@ def make_spike_lens(lm: ecco.lm.LM,
         def _fn(h):
             result = sparse_encode(X=h-spike_basis_bias_np,
                                    dictionary=spike_basis_for_coder,
-                                   algorithm='lasso_lars',
-                                   alpha=alpha,
+                                   algorithm=variant_kwargs.get('algorithm', 'lasso_cd'),
+                                   alpha=variant_kwargs.get("alpha", 5e-2),
+                                   max_iter=variant_kwargs.get("max_iter", 1000),
+                                   verbose=variant_kwargs.get("verbose", 0),
                                    )
-            result /= norms_for_coder
+            result = result/norms_for_coder
             return result
+        def _inv_fn(lensed_h):
+            return spike_basis_for_coder.dot(lensed_h * norms_for_coder) + spike_basis_bias_np + spike_shift
     else:
         # TODO: implement pseudoinverse, raw multiply, others?
         raise ValueError(f"variant {repr(variant)}")
