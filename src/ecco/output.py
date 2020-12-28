@@ -11,10 +11,6 @@ from torch.nn import functional as F
 from sklearn import decomposition
 from typing import Optional, List
 
-# TODO: move
-def _subtract_mean(t):
-  return (t.T-t.mean(dim=1).T).T
-
 class OutputSeq:
     def __init__(self,
                  token_ids=None,
@@ -445,7 +441,7 @@ class OutputSeq:
         for lix in range(max_layers):
           h = _at_position(self.hidden_states[lix])
           if subtract_means:
-              h = _subtract_mean(h)
+              h = ecco.torch_util.subtract_mean(h)
           if lix == 0:
             rows.append(h)
             names.append(f"h{lix}")
@@ -453,13 +449,13 @@ class OutputSeq:
           if lix < len(self.attn_outs):
             h_plus_attn = h + _at_position(self.attn_outs[lix])
             if subtract_means:
-              h_plus_attn = _subtract_mean(h_plus_attn)
+              h_plus_attn = ecco.torch_util.subtract_mean(h_plus_attn)
             rows.append(h_plus_attn)
             names.append(f"h{lix}+attn{lix+1}")
 
             h_plus_attn_mlp = h + _at_position(self.attn_outs[lix]) + _at_position(self.mlp_outs[lix])
             if subtract_means:
-              h_plus_attn_mlp = _subtract_mean(h_plus_attn_mlp)
+              h_plus_attn_mlp = ecco.torch_util.subtract_mean(h_plus_attn_mlp)
             rows.append(h_plus_attn_mlp)
             names.append(f"h{lix+1}")
 

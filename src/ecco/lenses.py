@@ -10,14 +10,6 @@ from sklearn.decomposition import sparse_encode
 import torch
 import ecco
 
-# TODO: move
-def _to_tensor(x, device):
-    return x.to(device) if isinstance(x, torch.Tensor) else torch.as_tensor(x).to(device)
-
-# TODO: move
-def _to_numpy(x):
-    return x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x
-
 class _LensHeadBase:
     def __init__(self,
                  fn,
@@ -29,9 +21,9 @@ class _LensHeadBase:
         self.layer_normed_inputs = layer_normed_inputs
 
         if self.tensor_inputs_and_outputs:
-            self._to_input = _to_tensor
+            self._to_input = ecco.torch_util.to_tensor
         else:
-            self._to_input = lambda x, device: _to_numpy(x)
+            self._to_input = lambda x, device: ecco.torch_util.to_numpy(x)
 
     def __call__(self, h, h_prev=None, device='cpu'):
         if h_prev is not None:
@@ -39,7 +31,7 @@ class _LensHeadBase:
         else:
             h_input = self._to_input(h, device)
         out = self.fn(h_input)
-        out_tensor = _to_tensor(out, device)
+        out_tensor = ecco.torch_util.to_tensor(out, device)
         return out_tensor
 
 
@@ -64,6 +56,7 @@ def make_logit_lens(output: ecco.output.OutputSeq):
 def make_spike_lens(lm: ecco.lm.LM,
                     layer_num: int,
                     layer_normed_inputs=False,
+                    subtract_mean_from_weights=False,
                     variant="sparse",
                     variant_kwargs={},
                     ):
@@ -72,6 +65,10 @@ def make_spike_lens(lm: ecco.lm.LM,
         spike_basis = p
       if name == f"{layer_num}.mlp.c_proj.bias":
         spike_basis_bias = p
+
+    if subtract_mean_from_weights:
+        spike_basis = ecco.torch_util.subtract_mean(spike_basis)
+        spike_basis_bias = ecco.torch_util.subtract_mean(spike_basis_bias)
 
     numpy_head = False
 
@@ -102,9 +99,9 @@ def make_spike_lens(lm: ecco.lm.LM,
         _base_fn = _fn
         def _fn(h):
             # TODO: cleanup?
-            h = lm.layer_norm(_to_tensor(h, lm.device))
+            h = lm.layer_norm(ecco.torch_util.to_tensor(h, lm.device))
             if numpy_head:
-              h = _to_numpy(h)
+              h = ecco.torch_util.to_numpy(h)
             return _base_fn(h)
 
     lens_class = NumpyLensHead if numpy_head else LensHead
@@ -147,7 +144,7 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
         h_prev = h
         prev_lensed = h_lensed
 
-    rows_np = [_to_numpy(row) for row in rows]
+    rows_np = [ecco.torch_util.to_numpy(row) for row in rows]
     a = np.stack(rows_np, axis=0)
 
     # TODO: cleanup
