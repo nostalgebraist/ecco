@@ -14,39 +14,53 @@ import ecco.output
 import ecco.torch_util
 
 
+def _rms(x):
+  return np.sqrt((x**2).mean())
+
+def _rms_relative_err(x, xtrue):
+  return _rms(x-xtrue) / _rms(xtrue)
+
 class _LensHeadBase:
     def __init__(self,
                  fn,
+                 inv_fn=None,
                  tensor_inputs_and_outputs=True,
-                 layer_normed_inputs=False,
                  ):
         self.fn = fn
+        self.inv_fn = inv_fn
         self.tensor_inputs_and_outputs = tensor_inputs_and_outputs
-        self.layer_normed_inputs = layer_normed_inputs
 
         if self.tensor_inputs_and_outputs:
             self._to_input = ecco.torch_util.to_tensor
         else:
             self._to_input = lambda x, device: ecco.torch_util.to_numpy(x)
 
-    def __call__(self, h, h_prev=None, device='cpu'):
+    def __call__(self, h, h_prev=None, device='cpu', invert=False):
         if h_prev is not None:
             h_input = self._to_input(h, device) - self._to_input(h_prev, device)
         else:
             h_input = self._to_input(h, device)
-        out = self.fn(h_input)
+        if invert:
+            if self.inv_fn is None:
+                raise ValueError(f"lens lacks an inv_fn")
+            out = self.inv_fn(h_input)
+        else:
+            out = self.fn(h_input)
         out_tensor = ecco.torch_util.to_tensor(out, device)
         return out_tensor
 
+    def invert(self, h_lensed, device='cpu'):
+        return self(h_lensed, device=device, invert=True)
+
 
 class LensHead(_LensHeadBase):
-    def __init__(self, fn):
-        super().__init__(fn, tensor_inputs_and_outputs=True)
+    def __init__(self, fn, inv_fn=None):
+        super().__init__(fn, inv_fn=inv_fn, tensor_inputs_and_outputs=True)
 
 
 class NumpyLensHead(_LensHeadBase):
-    def __init__(self, fn):
-        super().__init__(fn, tensor_inputs_and_outputs=False)
+    def __init__(self, fn, inv_fn=None):
+        super().__init__(fn, inv_fn=inv_fn, tensor_inputs_and_outputs=False)
 
 
 NO_LENS = LensHead(fn=lambda x: x)
@@ -59,7 +73,6 @@ def make_logit_lens(output: ecco.output.OutputSeq):
 
 def make_spike_lens(lm: ecco.lm.LM,
                     layer_num: int,
-                    layer_normed_inputs=False,
                     subtract_mean_from_weights=False,
                     variant="sparse",
                     variant_kwargs={},
@@ -96,22 +109,13 @@ def make_spike_lens(lm: ecco.lm.LM,
             result = result/norms_for_coder
             return result
         def _inv_fn(lensed_h):
-            return spike_basis_for_coder.dot(lensed_h * norms_for_coder) + spike_basis_bias_np + spike_shift
+            return (lensed_h * norms_for_coder).dot(spike_basis_for_coder) + spike_basis_bias_np
     else:
         # TODO: implement pseudoinverse, raw multiply, others?
         raise ValueError(f"variant {repr(variant)}")
 
-    if layer_normed_inputs:
-        _base_fn = _fn
-        def _fn(h):
-            # TODO: cleanup?
-            h = lm.layer_norm(ecco.torch_util.to_tensor(h, lm.device))
-            if numpy_head:
-              h = ecco.torch_util.to_numpy(h)
-            return _base_fn(h)
-
     lens_class = NumpyLensHead if numpy_head else LensHead
-    return lens_class(fn=_fn)
+    return lens_class(fn=_fn, inv_fn=_inv_fn)
 
 
 def lensed_subblock_states(output: ecco.output.OutputSeq,
@@ -119,6 +123,7 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
                            lens_head: _LensHeadBase=None,
                            lens_head_on_diff=False,
                            subtract_means=True,
+                           do_layer_norm=False,
                            max_layers=None,
                            use_tqdm=False):
     if lens_head is None:
@@ -127,10 +132,12 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     subblock_state_array, names = output.subblock_states(
         position=position,
         subtract_means=subtract_means,
+        do_layer_norm=do_layer_norm,
         max_layers=max_layers,
     )
 
     rows = []
+    errs = []
 
     _iter = zip(names, subblock_state_array)
     if use_tqdm:
@@ -146,6 +153,10 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
             h_lensed = head_out
 
         rows.append(h_lensed)
+        if lens_head.inv_fn is not None:
+            h_inv = lens_head.invert(h_lensed)
+            reconstruction_err = _rms_relative_err(h_inv, h)
+            errs.append(reconstruction_err)
 
         h_prev = h
         prev_lensed = h_lensed
@@ -156,6 +167,9 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     # TODO: cleanup
     pre_df = a[:, 0, :]  # remove position singleton axis
     df = pd.DataFrame(pre_df, index=names, )
+
+    df["metadata_errs"] = errs
+
     return df
 
 
@@ -171,6 +185,8 @@ def plot_lensed_subblock_states(states,
         clip_percentile = 99.7 if diff else 98
 
     to_plot = states.loc[layer_start:layer_end]
+    to_plot = to_plot.drop([c for c in to_plot.columns if c.startswith("metadata")],
+                           axis=1)
 
     if diff:
       to_plot = to_plot.diff(axis=0).dropna()

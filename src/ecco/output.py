@@ -426,6 +426,7 @@ class OutputSeq:
     def subblock_states(self,
                         position=None,
                         subtract_means=True,
+                        do_layer_norm=False,
                         max_layers=None):
         def _at_position(state):
             if position is not None:
@@ -442,6 +443,8 @@ class OutputSeq:
           h = _at_position(self.hidden_states[lix])
           if subtract_means:
               h = ecco.torch_util.subtract_mean(h)
+          if do_layer_norm:
+              h = self.layer_norm(h)
           if lix == 0:
             rows.append(h)
             names.append(f"h{lix}")
