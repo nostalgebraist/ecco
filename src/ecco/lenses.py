@@ -121,7 +121,7 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
                            max_layers=None,
                            use_tqdm=False):
     if lens_head is None:
-        lens_head = make_layer_norm_lens(lm)
+        lens_head = make_layer_norm_lens(output)
 
     subblock_state_array, names = output.subblock_states(
         position=position,
