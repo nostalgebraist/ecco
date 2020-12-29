@@ -13,6 +13,10 @@ import ecco.lm
 import ecco.output
 import ecco.torch_util
 
+# TODO: put this in a context manager block
+import warnings
+from sklearn.exceptions import ConvergenceWarning
+warnings.simplefilter(action='ignore', category=ConvergenceWarning)
 
 def _rms(x):
   return np.sqrt((x**2).mean())
