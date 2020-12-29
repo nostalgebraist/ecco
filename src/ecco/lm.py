@@ -405,9 +405,9 @@ class LM(object):
 
         _activn_ins = token_activations[i, :][top_ixs]
         if do_gelu:
-              _activns = gelu(_activn_ins)
-            else:
-              _activns = _activn_ins
+             _activns = gelu(_activn_ins)
+        else:
+            _activns = _activn_ins
 
         activn_in_max = _activns.max()
 
