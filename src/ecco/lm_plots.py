@@ -11,6 +11,11 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib import colorbar
 from typing import Optional, List
 import sys
+import os
+import json
+import random
+from IPython import display as d
+import ecco
 
 def plot_activations(tokens, activations, vmin=0, vmax=2, height=60,
                      width_scale_per_item=1,
@@ -449,3 +454,90 @@ def plot_inner_token_rankings(input_tokens,
             raise
 
 # plt.title('How did previous layers rank the sampled output token\n', fontsize=28)
+
+def explore_arbitrary_sparklines(output, factors, **kwargs):
+    """hack because i (nostalgebraist) don't know how to write js myself"""
+    tokens = []
+    for idx, token in enumerate(output.tokens):
+        type = "input" if idx < output.n_input_tokens else 'output'
+        tokens.append({'token': token,
+                        'token_id': int(output.token_ids[idx]),
+                        'type': type,
+                        'position': idx
+                        })
+
+    factors = [comp.tolist() for comp in factors]
+
+    data = {
+        'tokens': tokens,
+        'factors': factors
+    }
+
+    d.display(d.HTML(filename=os.path.join(output._path, "html", "setup.html")))
+    d.display(d.HTML(filename=os.path.join(output._path, "html", "basic.html")))
+    viz_id = 'viz_{}'.format(round(random.random() * 1000000))
+    # print(data)
+    js = """
+      requirejs(['basic', 'ecco'], function(basic, ecco){{
+        const viz_id = basic.init()
+        ecco.interactiveTokensAndFactorSparklines(viz_id, {})
+      }}, function (err) {{
+        console.log(err);
+    }})""".format(data)
+    d.display(d.Javascript(js))
+
+    if 'printJson' in kwargs and kwargs['printJson']:
+        print(data)
+
+def gelu(x):
+  return 0.5*x*(1+np.tanh(np.sqrt(2/np.pi) * (x + 0.044715*x**3)))
+
+def visualize_token_activations(token_activations, i, max_tokens_to_show=100, cutoff_pos=1, cutoff_neg=-0.1):
+    if min(token_activations[i, :]) > cutoff_pos:
+          return "Not selective enough"
+    top_ixs = token_activations[i, :].argsort()[-max_tokens_to_show:][::-1]
+
+    token_ids = []
+    tokens = []
+    activn_ins = []
+    activns = []
+
+    _activn_ins = token_activations[i, :][top_ixs]
+    _activns = gelu(_activn_ins)
+
+    activn_in_max = _activns.max()
+
+    for token_id, _activn in zip(top_ixs, _activns):
+          activn_in = token_activations[i, token_id]
+
+          if (_activn > cutoff_pos) or (_activn < cutoff_neg):
+            token_ids.append(token_id)
+            tokens.append(" " +
+                lm.tokenizer.convert_tokens_to_string(
+                    lm.tokenizer.convert_ids_to_tokens([token_id])
+                    )
+            )
+            activn_ins.append(activn_in)
+            activns.append(_activn)
+
+    if len(token_ids)==0:
+          return "Not selective enough"
+    activn_ins = np.asarray(activn_ins)
+    activns = np.asarray(activns)
+    print(activns.shape)
+
+    factors = [np.stack([
+                             np.clip(activns, a_min=0, a_max=None),
+                             -1*np.clip(activns, a_min=None, a_max=0),
+                             ])]
+    print((activn_ins.min(), activn_ins.max()))
+    print((factors[0][0, 0], factors[0][0, -1]))
+
+    fake_output = ecco.output.OutputSeq(
+            token_ids=token_ids,
+            tokens=tokens,
+            n_input_tokens=0,
+            )
+    explore_arbitrary_sparklines(fake_output,
+                                    factors
+                                    )
