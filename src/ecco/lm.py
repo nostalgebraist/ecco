@@ -389,7 +389,8 @@ class LM(object):
         results_all = np.concatenate(results, axis=0)
         return results_all.T
 
-    def visualize_token_activations(self, token_activations, i, max_tokens_to_show=100, cutoff_pos=1, cutoff_neg=-0.1):
+    def visualize_token_activations(self, token_activations, i, max_tokens_to_show=100, cutoff_pos=1, cutoff_neg=-0.1,
+                                    do_gelu=False, use_cutoffs=True):
         def gelu(x):
             return 0.5*x*(1+np.tanh(np.sqrt(2/np.pi) * (x + 0.044715*x**3)))
 
@@ -403,7 +404,10 @@ class LM(object):
         activns = []
 
         _activn_ins = token_activations[i, :][top_ixs]
-        _activns = gelu(_activn_ins)
+        if do_gelu:
+              _activns = gelu(_activn_ins)
+            else:
+              _activns = _activn_ins
 
         activn_in_max = _activns.max()
 
@@ -444,7 +448,12 @@ class LM(object):
 
     def visualize_multiple_token_activations(self, token_activations, indices,
                                              indices_to_names={},
-                                             reference_activations=None):
+                                             reference_activations=None,
+                                             max_tokens_to_show=100,
+                                             cutoff_pos=1,
+                                             cutoff_neg=-0.1,
+                                             do_gelu=False,
+                                             use_cutoffs=True):
         for i in indices:
             namef = f" ({indices_to_names.get(i, '')})" if i in indices_to_names else ""
             msg = f"spike {i}{namef}"
@@ -456,8 +465,11 @@ class LM(object):
             retval=self.visualize_token_activations(
                 token_activations,
                 i,
-                max_tokens_to_show=100,
-                cutoff_pos=0,
+                max_tokens_to_show=max_tokens_to_show,
+                cutoff_pos=cutoff_pos,
+                cutoff_neg=cutoff_neg,
+                do_gelu=do_gelu,
+                use_cutoffs=use_cutoffs,
                 )
 
             if retval is None:
