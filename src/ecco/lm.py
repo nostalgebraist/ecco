@@ -386,7 +386,7 @@ class LM(object):
             results.append(self._all_activations_dict[layer_num][0])
 
         results_all = np.concatenate(results, axis=0)
-    return results_all.T
+        return results_all.T
 
     def display_input_sequence(self, input_ids):
 
