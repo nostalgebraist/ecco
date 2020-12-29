@@ -12,6 +12,7 @@ import json
 from ecco.attribution import *
 from typing import Optional, Any
 from transformers.modeling_gpt2 import GPT2Model
+from tqdm.autonotebook import tqdm, trange
 
 
 def sample_output_token(scores, do_sample, temperature, top_k, top_p):
