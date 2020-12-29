@@ -442,6 +442,28 @@ class LM(object):
                                         factors
                                         )
 
+    def visualize_multiple_token_activations(self, token_activations, indices,
+                                             indices_to_names={},
+                                             reference_activations=None):
+        for i in indices:
+            namef = f" ({indices_to_names.get(i, '')})" if i in indices_to_names else ""
+            msg = f"spike {i}{namef}"
+            if reference_activations is not None:
+                msg += f"\nACT: {_a[i]:.2f}"
+            msg += "\n"
+            print(msg)
+
+            retval=self.visualize_token_activations(
+                token_activations,
+                i,
+                max_tokens_to_show=100,
+                cutoff_pos=0,
+                )
+
+            if retval is None:
+              print('\n\n\n\n----------\n\n\n\n\n\n\n\n\n')
+            else:
+              print(retval + "\n")
 
     def display_input_sequence(self, input_ids):
 
