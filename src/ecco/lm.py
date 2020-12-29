@@ -367,6 +367,27 @@ class LM(object):
     def layer_norm_f(self):
         return self.model.transformer.ln_f
 
+    def get_token_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None):
+        n_vocab=self.tokenizer.vocab_size
+
+        if nbatch is None:
+            nbatch = n_vocab//batchsize + 1
+
+        indices = np.arange(0, n_vocab)
+        results = []
+
+        for i in trange(0, min(n_vocab, nbatch*batchsize), batchsize):
+            batch_input_ids = indices[i:i+batchsize]
+            batch_position_ids = [0]*len(batch_input_ids)
+
+            _ = self.model.forward(input_ids=ecco.torch_util.to_tensor(batch_input_ids, self.device),
+                                   position_ids=ecco.torch_util.to_tensor(batch_position_ids, self.device))
+
+            results.append(self._all_activations_dict[layer_num][0])
+
+        results_all = np.concatenate(results, axis=0)
+    return results_all.T
+
     def display_input_sequence(self, input_ids):
 
         tokens = []
