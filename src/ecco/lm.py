@@ -389,6 +389,60 @@ class LM(object):
         results_all = np.concatenate(results, axis=0)
         return results_all.T
 
+    def visualize_token_activations(self, token_activations, i, max_tokens_to_show=100, cutoff_pos=1, cutoff_neg=-0.1):
+        def gelu(x):
+            return 0.5*x*(1+np.tanh(np.sqrt(2/np.pi) * (x + 0.044715*x**3)))
+
+        if min(token_activations[i, :]) > cutoff_pos:
+              return "Not selective enough"
+        top_ixs = token_activations[i, :].argsort()[-max_tokens_to_show:][::-1]
+
+        token_ids = []
+        tokens = []
+        activn_ins = []
+        activns = []
+
+        _activn_ins = token_activations[i, :][top_ixs]
+        _activns = gelu(_activn_ins)
+
+        activn_in_max = _activns.max()
+
+        for token_id, _activn in zip(top_ixs, _activns):
+              activn_in = token_activations[i, token_id]
+
+              if (_activn > cutoff_pos) or (_activn < cutoff_neg):
+                token_ids.append(token_id)
+                tokens.append(" " +
+                    self.tokenizer.convert_tokens_to_string(
+                        self.tokenizer.convert_ids_to_tokens([token_id])
+                        )
+                )
+                activn_ins.append(activn_in)
+                activns.append(_activn)
+
+        if len(token_ids)==0:
+              return "Not selective enough"
+        activn_ins = np.asarray(activn_ins)
+        activns = np.asarray(activns)
+        print(activns.shape)
+
+        factors = [np.stack([
+                                 np.clip(activns, a_min=0, a_max=None),
+                                 -1*np.clip(activns, a_min=None, a_max=0),
+                                 ])]
+        print((activn_ins.min(), activn_ins.max()))
+        print((factors[0][0, 0], factors[0][0, -1]))
+
+        fake_output = ecco.output.OutputSeq(
+                token_ids=token_ids,
+                tokens=tokens,
+                n_input_tokens=0,
+                )
+        ecco.lm_plots.explore_arbitrary_sparklines(fake_output,
+                                        factors
+                                        )
+
+
     def display_input_sequence(self, input_ids):
 
         tokens = []
