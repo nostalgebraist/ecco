@@ -368,16 +368,20 @@ class LM(object):
     def layer_norm_f(self):
         return self.model.transformer.ln_f
 
-    def get_token_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None):
+    def get_token_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None, indices=None):
         n_vocab=self.tokenizer.vocab_size
 
-        if nbatch is None:
-            nbatch = n_vocab//batchsize + 1
+        if indices is None:
+            indices = np.arange(0, n_vocab)
 
-        indices = np.arange(0, n_vocab)
+        n_indices = len(indices)
+
+        if nbatch is None:
+            nbatch = n_indices//batchsize + 1
+
         results = []
 
-        for i in trange(0, min(n_vocab, nbatch*batchsize), batchsize):
+        for i in trange(0, min(n_indices, nbatch*batchsize), batchsize):
             batch_input_ids = indices[i:i+batchsize]
             batch_position_ids = [0]*len(batch_input_ids)
 
@@ -387,7 +391,8 @@ class LM(object):
             results.append(self._all_activations_dict[layer_num][0])
 
         results_all = np.concatenate(results, axis=0)
-        return results_all.T
+        df = pd.DataFrame(results_all.T, columns=indices)
+        return df
 
     def visualize_token_activations(self, token_activations, i,
                                     max_tokens_to_show=100,
@@ -397,6 +402,9 @@ class LM(object):
                                     use_cutoffs=True):
         def gelu(x):
             return 0.5*x*(1+np.tanh(np.sqrt(2/np.pi) * (x + 0.044715*x**3)))
+
+        token_activations_df = token_activations
+        token_activations = token_activations_df.values
 
         if use_cutoffs and (min(token_activations[i, :]) > cutoff_pos):
               return "Not selective enough"
@@ -415,7 +423,8 @@ class LM(object):
 
         activn_in_max = _activns.max()
 
-        for token_id, _activn in zip(top_ixs, _activns):
+        for token_ix, _activn in zip(top_ixs, _activns):
+              token_id = token_activations_df.columns[token_ix]
               activn_in = token_activations[i, token_id]
 
               if (not use_cutoffs) or ((_activn > cutoff_pos) or (_activn < cutoff_neg)):
