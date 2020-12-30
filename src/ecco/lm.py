@@ -376,7 +376,7 @@ class LM(object):
     def layer_norm_f(self):
         return self.model.transformer.ln_f
 
-    def get_ngram_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None, indices):
+    def get_ngram_mlp_activations(self, indices, layer_num: int, batchsize=128, nbatch=None):
         n_indices = len(indices)
         gram_size = indices.shape[1]
         gram_range = list(range(gram_size))
@@ -407,10 +407,10 @@ class LM(object):
         indices = indices.reshape(-1, 1)
 
         return self.get_ngram_mlp_activations(
+            indices=indices,
             layer_num=layer_num,
             batchsize=batchsize,
             nbatch=nbatch,
-            indices=indices,
         )
 
 
