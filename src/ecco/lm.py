@@ -397,6 +397,8 @@ class LM(object):
 
     def visualize_token_activations(self, token_activations, i,
                                     max_tokens_to_show=100,
+                                    max_tokens_to_show_mid=20,
+                                    max_tokens_to_show_neg=20,
                                     cutoff_pos=1,
                                     cutoff_neg=-0.1,
                                     do_gelu=False,
@@ -407,18 +409,35 @@ class LM(object):
         token_activations_df = token_activations
         token_activations = token_activations_df.values
 
-        if use_cutoffs and (min(token_activations[i, :]) > cutoff_pos):
+        this_token_activations = token_activations[i, :]
+        if use_cutoffs and (min(this_token_activations) > cutoff_pos):
               return "Not selective enough"
-        top_ixs = token_activations[i, :].argsort()[-max_tokens_to_show:][::-1]
+
+        ixs = this_token_activations.argsort()
+        pos_ixs = ixs[this_token_activations[ixs]>=0]
+        neg_ixs = ixs[this_token_activations[ixs]<0]
+
+        top_ixs = pos_ixs[-max_tokens_to_show:][::-1]
+        print(f"{len(top_ixs)} top")
+
+        top_ixs_mid = pos_ixs[:max_tokens_to_show_mid][::-1]
+        top_ixs_mid = [ix for ix in top_ixs_mid if ix not in top_ixs]
+        print(f"{len(top_ixs_mid)} mid")
+        top_ixs = np.concatenate([top_ixs, top_ixs_mid]).astype(int)
+
+        top_ixs_neg = neg_ixs[:max_tokens_to_show_neg][::-1]
+        top_ixs_neg = [ix for ix in top_ixs_neg if ix not in top_ixs]
+        print(f"{len(top_ixs_neg)} neg")
+        top_ixs = np.concatenate([top_ixs, top_ixs_neg]).astype(int)
 
         token_ids = []
         tokens = []
         activn_ins = []
         activns = []
 
-        _activn_ins = token_activations[i, :][top_ixs]
+        _activn_ins = this_token_activations[top_ixs]
         if do_gelu:
-             _activns = gelu(_activn_ins)
+            _activns = gelu(_activn_ins)
         else:
             _activns = _activn_ins
 
@@ -426,7 +445,7 @@ class LM(object):
 
         for token_ix, _activn in zip(top_ixs, _activns):
               token_id = token_activations_df.columns[token_ix]
-              activn_in = token_activations[i, token_ix]
+              activn_in = this_token_activations[token_ix]
 
               if (not use_cutoffs) or ((_activn > cutoff_pos) or (_activn < cutoff_neg)):
                 token_ids.append(token_id)
@@ -445,29 +464,31 @@ class LM(object):
         print(activns.shape)
 
         factors = [np.stack([
-                                 np.clip(activns, a_min=0, a_max=None),
-                                 -1*np.clip(activns, a_min=None, a_max=0),
-                                 ])]
-        print((activn_ins.min(), activn_ins.max()))
-        print((factors[0][0, 0], factors[0][0, -1]))
+                                  np.clip(activns, a_min=0, a_max=None),
+                                  -1*np.clip(activns, a_min=None, a_max=0),
+                                  ])]
+        # print((activn_ins.min(), activn_ins.max()))
+        # print((factors[0][0, 0], factors[0][0, -1]))
 
         fake_output = ecco.output.OutputSeq(
                 token_ids=token_ids,
                 tokens=tokens,
                 n_input_tokens=0,
                 )
-        ecco.lm_plots.explore_arbitrary_sparklines(fake_output,
+        ecco.self_plots.explore_arbitrary_sparklines(fake_output,
                                         factors
                                         )
 
     def visualize_multiple_token_activations(self, token_activations, indices,
-                                             indices_to_names={},
-                                             reference_activations=None,
-                                             max_tokens_to_show=100,
-                                             cutoff_pos=1,
-                                             cutoff_neg=-0.1,
-                                             do_gelu=False,
-                                             use_cutoffs=True):
+                                              indices_to_names={},
+                                              reference_activations=None,
+                                              max_tokens_to_show=100,
+                                              max_tokens_to_show_mid=20,
+                                              max_tokens_to_show_neg=20,
+                                              cutoff_pos=1,
+                                              cutoff_neg=-0.1,
+                                              do_gelu=False,
+                                              use_cutoffs=True):
         for i in indices:
             namef = f" ({indices_to_names.get(i, '')})" if i in indices_to_names else ""
             msg = f"spike {i}{namef}"
@@ -480,6 +501,8 @@ class LM(object):
                 token_activations,
                 i,
                 max_tokens_to_show=max_tokens_to_show,
+                max_tokens_to_show_mid=max_tokens_to_show_mid,
+                max_tokens_to_show_neg=max_tokens_to_show_neg,
                 cutoff_pos=cutoff_pos,
                 cutoff_neg=cutoff_neg,
                 do_gelu=do_gelu,
