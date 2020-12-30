@@ -414,7 +414,7 @@ class LM(object):
         return self.get_ngram_mlp_activations(
             indices=indices,
             layer_num=layer_num,
-            batchsize=batchsize,
+            batchsize_base=batchsize,
             nbatch=nbatch,
         )
 
