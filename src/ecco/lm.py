@@ -475,7 +475,7 @@ class LM(object):
                 tokens=tokens,
                 n_input_tokens=0,
                 )
-        ecco.self_plots.explore_arbitrary_sparklines(fake_output,
+        ecco.lm_plots.explore_arbitrary_sparklines(fake_output,
                                         factors
                                         )
 
