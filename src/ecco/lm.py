@@ -426,7 +426,7 @@ class LM(object):
 
         for token_ix, _activn in zip(top_ixs, _activns):
               token_id = token_activations_df.columns[token_ix]
-              activn_in = token_activations[i, token_id]
+              activn_in = token_activations[i, token_ix]
 
               if (not use_cutoffs) or ((_activn > cutoff_pos) or (_activn < cutoff_neg)):
                 token_ids.append(token_id)
