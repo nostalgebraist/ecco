@@ -389,12 +389,16 @@ class LM(object):
         results_all = np.concatenate(results, axis=0)
         return results_all.T
 
-    def visualize_token_activations(self, token_activations, i, max_tokens_to_show=100, cutoff_pos=1, cutoff_neg=-0.1,
-                                    do_gelu=False, use_cutoffs=True):
+    def visualize_token_activations(self, token_activations, i,
+                                    max_tokens_to_show=100,
+                                    cutoff_pos=1,
+                                    cutoff_neg=-0.1,
+                                    do_gelu=False,
+                                    use_cutoffs=True):
         def gelu(x):
             return 0.5*x*(1+np.tanh(np.sqrt(2/np.pi) * (x + 0.044715*x**3)))
 
-        if min(token_activations[i, :]) > cutoff_pos:
+        if use_cutoffs and (min(token_activations[i, :]) > cutoff_pos):
               return "Not selective enough"
         top_ixs = token_activations[i, :].argsort()[-max_tokens_to_show:][::-1]
 
@@ -414,7 +418,7 @@ class LM(object):
         for token_id, _activn in zip(top_ixs, _activns):
               activn_in = token_activations[i, token_id]
 
-              if (_activn > cutoff_pos) or (_activn < cutoff_neg):
+              if (not use_cutoffs) or ((_activn > cutoff_pos) or (_activn < cutoff_neg)):
                 token_ids.append(token_id)
                 tokens.append(" " +
                     self.tokenizer.convert_tokens_to_string(
@@ -425,7 +429,7 @@ class LM(object):
                 activns.append(_activn)
 
         if len(token_ids)==0:
-              return "Not selective enough"
+              return "Not selective enough (no tokens to show)"
         activn_ins = np.asarray(activn_ins)
         activns = np.asarray(activns)
         print(activns.shape)
@@ -458,7 +462,7 @@ class LM(object):
             namef = f" ({indices_to_names.get(i, '')})" if i in indices_to_names else ""
             msg = f"spike {i}{namef}"
             if reference_activations is not None:
-                msg += f"\nACT: {_a[i]:.2f}"
+                msg += f"\nACT: {reference_activations[i]:.2f}"
             msg += "\n"
             print(msg)
 
