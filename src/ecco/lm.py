@@ -16,6 +16,13 @@ from transformers.modeling_gpt2 import GPT2Model
 from tqdm.autonotebook import tqdm, trange
 
 
+# TODO: move
+def detupleize_gram(g):
+  return "|".join([str(t) for t in g])
+
+def retupleize_gram(s):
+  return tuple([int(t) for t in s.split("|")])
+
 def sample_output_token(scores, do_sample, temperature, top_k, top_p):
     if do_sample:
         # Temperature (higher temperature => more likely to sample low probability tokens)
@@ -369,13 +376,10 @@ class LM(object):
     def layer_norm_f(self):
         return self.model.transformer.ln_f
 
-    def get_token_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None, indices=None):
-        n_vocab=self.tokenizer.vocab_size
-
-        if indices is None:
-            indices = np.arange(0, n_vocab)
-
+    def get_ngram_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None, indices):
         n_indices = len(indices)
+        gram_size = indices.shape[1]
+        gram_range = list(range(gram_size))
 
         if nbatch is None:
             nbatch = n_indices//batchsize + 1
@@ -383,8 +387,8 @@ class LM(object):
         results = []
 
         for i in trange(0, min(n_indices, nbatch*batchsize), batchsize):
-            batch_input_ids = indices[i:i+batchsize]
-            batch_position_ids = [0]*len(batch_input_ids)
+            batch_input_ids = indices[i:i+batchsize, :]
+            batch_position_ids = gram_range*len(batch_input_ids)
 
             _ = self.model.forward(input_ids=ecco.torch_util.to_tensor(batch_input_ids, self.device),
                                    position_ids=ecco.torch_util.to_tensor(batch_position_ids, self.device))
@@ -392,8 +396,23 @@ class LM(object):
             results.append(self._all_activations_dict[layer_num][0])
 
         results_all = np.concatenate(results, axis=0)
-        df = pd.DataFrame(results_all.T, columns=indices)
+        df = pd.DataFrame(results_all.T, columns=[detupleize_gram(row) for row in indices])
         return df
+
+    def get_token_mlp_activations(self, layer_num: int, batchsize=128, nbatch=None, indices=None):
+        n_vocab=self.tokenizer.vocab_size
+
+        if indices is None:
+            indices = np.arange(0, n_vocab)
+        indices = indices.reshape(-1, 1)
+
+        return self.get_ngram_mlp_activations(
+            layer_num=layer_num,
+            batchsize=batchsize,
+            nbatch=nbatch,
+            indices=indices,
+        )
+
 
     def visualize_token_activations(self, token_activations, i,
                                     max_tokens_to_show=100,
@@ -475,7 +494,7 @@ class LM(object):
                 tokens=tokens,
                 n_input_tokens=0,
                 )
-        ecco.lm_plots.explore_arbitrary_sparklines(fake_output,
+        ecco.self_plots.explore_arbitrary_sparklines(fake_output,
                                         factors
                                         )
 
