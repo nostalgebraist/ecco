@@ -150,10 +150,11 @@ def lensed_subblock_states(output: ecco.output.OutputSeq,
     h_prev = None
     prev_lensed = None
     for name, h in _iter:
-        head_out = lens_head(h, h_prev=h_prev, device=output.device)
         if lens_head_on_diff and prev_lensed is not None:
+            head_out = lens_head(h, h_prev=h_prev, device=output.device)
             h_lensed = prev_lensed + head_out
         else:
+            head_out = lens_head(h, h_prev=None, device=output.device)
             h_lensed = head_out
 
         rows.append(h_lensed)
