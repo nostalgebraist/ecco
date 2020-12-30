@@ -376,10 +376,12 @@ class LM(object):
     def layer_norm_f(self):
         return self.model.transformer.ln_f
 
-    def get_ngram_mlp_activations(self, indices, layer_num: int, batchsize=128, nbatch=None):
+    def get_ngram_mlp_activations(self, indices, layer_num: int, batchsize_base=128, nbatch=None):
         n_indices = len(indices)
         gram_size = indices.shape[1]
         gram_range = list(range(gram_size))
+
+        batchsize = batchsize_base // gram_size
 
         if nbatch is None:
             nbatch = n_indices//batchsize + 1
@@ -387,13 +389,16 @@ class LM(object):
         results = []
 
         for i in trange(0, min(n_indices, nbatch*batchsize), batchsize):
-            batch_input_ids = indices[i:i+batchsize, :]
-            batch_position_ids = gram_range*len(batch_input_ids)
+            batch_raw_input_ids = indices[i:i+batchsize, :]
+            batch_input_ids = np.concatenate([row for row in batch_raw_input_ids])
+            batch_position_ids = np.concatenate([gram_range for row in batch_raw_input_ids])
 
             _ = self.model.forward(input_ids=ecco.torch_util.to_tensor(batch_input_ids, self.device),
-                                   position_ids=ecco.torch_util.to_tensor(batch_position_ids, self.device))
+                                    position_ids=ecco.torch_util.to_tensor(batch_position_ids, self.device))
 
-            results.append(self._all_activations_dict[layer_num][0])
+            acts_raw = self._all_activations_dict[layer_num][0]
+            acts = np.stack([acts_raw[:, j].reshape(-1, gram_size)[:, -1] for j in range(acts_raw.shape[1])], axis=1)
+            results.append(acts)
 
         results_all = np.concatenate(results, axis=0)
         df = pd.DataFrame(results_all.T, columns=[detupleize_gram(row) for row in indices])
