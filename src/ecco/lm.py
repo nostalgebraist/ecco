@@ -388,7 +388,7 @@ class LM(object):
 
         results = []
 
-        for i in trange(0, min(n_indices, nbatch*batchsize), batchsize):
+        for i in trange(0, min(n_indices, nbatch*batchsize), batchsize, smoothing=0., miniters=1, mininterval=5):
             batch_raw_input_ids = indices[i:i+batchsize, :]
             batch_input_ids = np.concatenate([row for row in batch_raw_input_ids])
             batch_position_ids = np.concatenate([gram_range for row in batch_raw_input_ids])
